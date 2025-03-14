@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CryptoP2P - Mercado de Criptomonedas</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body class="bg-gray-100">
+    <nav class="bg-white shadow-lg">
+        <div class="max-w-6xl mx-auto px-4">
+            <div class="flex justify-between items-center py-4">
+                <h1 class="text-2xl font-bold text-blue-600">CryptoP2P</h1>
+                <div id="authSection"></div>
+            </div>
+        </div>
+    </nav>
+
+    <main class="max-w-6xl mx-auto px-4 py-8">
+        <!-- Formulario de Login -->
+        <div id="loginForm" class="hidden bg-white p-8 rounded-lg shadow-md max-w-md mx-auto mb-8">
+            <h2 class="text-xl font-bold mb-6">Iniciar Sesión</h2>
+            <input type="email" id="email" placeholder="Email" class="w-full p-2 mb-4 border rounded">
+            <input type="password" id="password" placeholder="Contraseña" class="w-full p-2 mb-4 border rounded">
+            <button onclick="login()" class="w-full bg-blue-500 text-white p-2 rounded hover:bg-blue-600">
+                Entrar
+            </button>
+            <p class="mt-4 text-center">
+                ¿No tienes cuenta? 
+                <button onclick="showSignup()" class="text-blue-500">Regístrate</button>
+            </p>
+        </div>
+
+        <!-- Formulario de Registro -->
+        <div id="signupForm" class="hidden bg-white p-8 rounded-lg shadow-md max-w-md mx-auto mb-8">
+            <h2 class="text-xl font-bold mb-6">Registrarse</h2>
+            <input type="email" id="signupEmail" placeholder="Email" class="w-full p-2 mb-4 border rounded">
+            <input type="password" id="signupPassword" placeholder="Contraseña" class="w-full p-2 mb-4 border rounded">
+            <button onclick="signup()" class="w-full bg-green-500 text-white p-2 rounded hover:bg-green-600">
+                Crear cuenta
+            </button>
+            <p class="mt-4 text-center">
+                ¿Ya tienes cuenta? 
+                <button onclick="showLogin()" class="text-blue-500">Inicia sesión</button>
+            </p>
+        </div>
+
+        <!-- Listado de Anuncios -->
+        <div id="adsGrid" class="grid grid-cols-1 md:grid-cols-3 gap-6"></div>
+
+        <!-- Formulario de Nuevo Anuncio -->
+        <div id="createAdForm" class="hidden bg-white p-8 rounded-lg shadow-md max-w-md mx-auto mt-8">
+            <h2 class="text-xl font-bold mb-6">Crear Anuncio</h2>
+            <select id="cryptoType" class="w-full p-2 mb-4 border rounded">
+                <option value="BTC">Bitcoin (BTC)</option>
+                <option value="ETH">Ethereum (ETH)</option>
+                <option value="USDT">Tether (USDT)</option>
+            </select>
+            <input type="number" id="cryptoAmount" placeholder="Cantidad" class="w-full p-2 mb-4 border rounded">
+            <input type="number" id="cryptoPrice" placeholder="Precio por unidad" class="w-full p-2 mb-4 border rounded">
+            <button onclick="createAd()" class="w-full bg-green-500 text-white p-2 rounded hover:bg-green-600">
+                Publicar Anuncio
+            </button>
+        </div>
+    </main>
+
+<script>
+// Configuración Supabase
+const supabaseUrl = 'https://uxutligzjolfnmajuvcc.supabase.co';
+const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV4dXRsaWd6am9sZm5tYWp1dmNjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDE4OTA4NzcsImV4cCI6MjA1NzQ2Njg3N30._PONWXVfw2IV1LKgRgH3RSHbwz3tHNVG1zakU_zRDU0';
+const supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
+let currentUser = null;
+
+// Funciones de UI
+function showLogin() {
+    document.getElementById('signupForm').classList.add('hidden');
+    document.getElementById('loginForm').classList.remove('hidden');
+}
+
+function showSignup() {
+    document.getElementById('loginForm').classList.add('hidden');
+    document.getElementById('signupForm').classList.remove('hidden');
+}
+
+// Autenticación
+async function login() {
+    const email = document.getElementById('email').value;
+    const password = document.getElementById('password').value;
+    
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    
+    if(error) return alert(error.message);
+    
+    currentUser = data.user;
+    updateUI();
+    loadAds();
+}
+
+async function signup() {
+    const email = document.getElementById('signupEmail').value;
+    const password = document.getElementById('signupPassword').value;
+    
+    const { error } = await supabase.auth.signUp({ email, password });
+    
+    if(error) return alert(error.message);
+    
+    alert('Verifica tu correo electrónico');
+    showLogin();
+}
+
+async function logout() {
+    await supabase.auth.signOut();
+    location.reload();
+}
+
+// Gestión de Anuncios
+async function createAd() {
+    if(!currentUser) return alert('Debes iniciar sesión');
+    
+    const crypto = document.getElementById('cryptoType').value;
+    const amount = document.getElementById('cryptoAmount').value;
+    const price = document.getElementById('cryptoPrice').value;
+    
+    const { error } = await supabase.from('ads').insert([{
+        user_id: currentUser.id,
+        crypto,
+        amount: parseFloat(amount),
+        price: parseFloat(price),
+        payment_method: "Transferencia bancaria"
+    }]);
+    
+    if(error) return alert(error.message);
+    
+    loadAds();
+    document.getElementById('cryptoAmount').value = '';
+    document.getElementById('cryptoPrice').value = '';
+}
+
+async function loadAds() {
+    const { data, error } = await supabase
+        .from('ads')
+        .select(`
+            id,
+            crypto,
+            amount,
+            price,
+            payment_method,
+            created_at,
+            profiles (username)
+        `)
+        .eq('status', 'active')
+        .order('created_at', { ascending: false });
+
+    if(error) return console.error(error);
+    
+    const adsGrid = document.getElementById('adsGrid');
+    adsGrid.innerHTML = data.map(ad => `
+        <div class="bg-white p-6 rounded-lg shadow-md">
+            <div class="flex justify-between items-start mb-4">
+                <h3 class="text-xl font-bold">${ad.crypto}</h3>
+                <span class="bg-blue-100 text-blue-800 px-2 py-1 rounded text-sm">
+                    ${ad.payment_method}
+                </span>
+            </div>
+            <p class="text-gray-600 mb-2">Precio: $${ad.price}</p>
+            <p class="text-gray-600">Cantidad: ${ad.amount}</p>
+            <p class="text-gray-500 text-sm mt-2">Vendedor: ${ad.profiles?.username || 'Anónimo'}</p>
+            <button class="w-full bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 mt-4">
+                Comprar
+            </button>
+        </div>
+    `).join('');
+}
+
+// Actualizar UI
+function updateUI() {
+    document.getElementById('loginForm').classList.add('hidden');
+    document.getElementById('signupForm').classList.add('hidden');
+    document.getElementById('createAdForm').classList.remove('hidden');
+    
+    document.getElementById('authSection').innerHTML = `
+        <div class="flex items-center gap-4">
+            <span>Hola, ${currentUser.email}</span>
+            <button onclick="logout()" class="bg-red-500 text-white px-4 py-2 rounded">
+                Cerrar sesión
+            </button>
+        </div>
+    `;
+}
+
+// Inicialización
+(async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if(user) {
+        currentUser = user;
+        updateUI();
+        loadAds();
+    } else {
+        showLogin();
+    }
+})();
+
+</script>
+</body>
+</html>
